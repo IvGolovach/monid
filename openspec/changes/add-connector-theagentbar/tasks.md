@@ -1,32 +1,50 @@
 # Tasks: add-connector-theagentbar
 
-- [x] Read upstream authoring, auth, usage, testing, identity, and CI requirements.
-- [x] Verify the public menu, receipt, and documentation against production.
-- [x] Define the provider, two GET endpoints, and receipt input schema.
-- [x] Document the payment boundary and the limits of receipt verification.
-- [x] Record/minimize fixtures; label constructed cases synthetic.
-- [x] Test compiled units: success, provider errors, input validation, no credentials, zero usage.
-- [x] Add the category and endpoint identity lock entries.
-- [x] Run formatting, lint, type checks, offline tests, version and identity guards (baseline exceptions below).
-- [x] Verify deterministic compilation and run both compiled endpoints live.
+- [x] Read upstream authoring, authentication, usage, lifecycle, identity, and CI contracts.
+- [x] Verify existing public menu and receipt behavior against the vendor.
+- [x] Define four native paid operations and three free read operations.
+- [x] Mirror the partner API input contract; keep service credentials out of agent input.
+- [x] Bind purchases to the host run ID and guard run, price, currency, drink, and fulfillment before billing.
+- [x] Document idempotency, free recovery, public content trust, and wallet/vendor settlement boundaries.
+- [x] Add seven endpoint identities and the agent-entertainment category.
+- [x] Add minimal synthetic paid fixtures and compiled sealed-unit tests.
+- [x] Run type checks, lint, changed-file formatting, the full offline suite, and frozen deterministic compilation.
+- [x] Re-run the identity guard and compare its failures with the untouched upstream baseline.
+- [x] Exercise all four compiled purchase operations against the isolated local vendor Worker/D1 implementation.
+- [ ] Deploy and verify partner routes and API documentation in the vendor staging/production environments.
+- [ ] Agree service credential delivery, vendor settlement, fees, refunds, and reconciliation with Monid.
+- [ ] Verify hosted Monid run persistence, exactly-once wallet settlement, and lost-response recovery.
+- [ ] Complete a separately authorized live purchase and reconciliation before production activation.
 
-## Upstream baseline findings
+## Observed local validation
 
-At base `30422c2b3f9ca1939a2c12e0a00949eee94c7812`, the identity guard already
-reports 66 compiled endpoint IDs missing from the lock and 7 locked IDs absent
-from the catalog. Running the guard on an untouched upstream checkout reproduces
-the exact same errors. This change adds only The Agent Bar's two IDs and does not
-rewrite other providers' identities.
+Deno 2.9.7: `deno task check`, `deno lint`, and changed-file formatting passed.
+`deno task test`: **1158 passed, 0 failed, 200 ignored** (credential-gated live tests).
+The connector contributes 17 tests across public reads, native billing, malformed
+successes, upstream errors, auth boundaries, recovery, and strict input validation.
+Two forced compilations with frozen metadata were byte-identical.
 
-The repository-wide formatter also reports existing formatting differences in
-`.github/workflows/ci.yml` and `.github/workflows/publish-catalog.yml`; both reproduce
-on the untouched upstream checkout. Formatting of this change passes.
+A separate local vendor implementation passed its full `pnpm check` (171 unit
+checks and 46 D1 integration cases, including 15 Monid cases). An additional
+contract-price consistency test passed, with type checking, after the OpenAPI
+contract was added. These vendor tests are outside this repository and are not
+remote CI evidence for this contribution.
 
-## Validation results
+A loopback-only transport connected the compiled sealed units to the local
+vendor Worker/D1: all four prices returned HTTP 200, exact same-run replays
+returned the same result, different-run nonce reuse returned uncharged HTTP 409,
+and free recovery returned the original result. The database contained exactly
+four orders, four receipts, four Backbar posts, and four charges totaling 3800
+synthetic cents. No real order, wallet debit, or payout was performed by this test.
 
-Deno 2.9.7: type check and lint passed; the full offline suite passed with
-1149 tests, 0 failures, and 200 credential-gated live tests ignored. The eight
-new connector tests passed. Changed-file formatting and the contract-version
-guard passed. Two forced compilations with frozen metadata were byte-identical.
-Live engine calls returned a menu (200), a verified existing receipt (200), and
-a missing receipt (404), all with zero usage. No order was created.
+## Upstream baseline exceptions
+
+At `30422c2b3f9ca1939a2c12e0a00949eee94c7812`, `deno task ids:check` already
+reports 66 compiled endpoint IDs missing from the lock and 7 stale locked IDs.
+The untouched upstream checkout reproduces the identical errors. This
+contribution adds only its seven IDs; unrelated provider identities are unchanged.
+
+Whole-repository `deno fmt --check` also fails on pre-existing differences in
+`.github/workflows/ci.yml` and `.github/workflows/publish-catalog.yml`, reproduced
+on that untouched checkout. Formatting of all changed connector/catalog files
+passes. These checks are documented as failures, not passing checks.

@@ -1,46 +1,55 @@
-# theagentbar-connector (delta)
+# The Agent Bar connector
 
 ## ADDED Requirements
 
-### Requirement: Public read-only provider
-The provider SHALL use name `theagentbar`, base URL `https://theagent.bar`, an
-auth identity function, a credentials schema requiring no fields, and FREE
-usage without credit pools. Metadata SHALL identify fictional entertainment
-and the separate MCP payment boundary.
+### Requirement: Discover and recover without another charge
 
-#### Scenario: No key is configured
-- **WHEN** an endpoint runs with empty provider credentials
-- **THEN** no credential is required or injected into the request
+The connector SHALL expose a free public menu and public receipt verification,
+and an authenticated free order lookup by the original UUID nonce. Historical
+receipt and billing amounts SHALL NOT become usage for a lookup.
 
-### Requirement: Menu preview
-`theagentbar#api/menu` SHALL GET `/api/menu` and preserve the upstream body.
+#### Scenario: Recover a completed purchase after a lost response
+- GIVEN a committed Monid order and its original nonce
+- WHEN the agent invokes get-order
+- THEN the original fulfillment is returned with zero usage and no mutation
 
-#### Scenario: Menu contains prices
-- **WHEN** the menu returns USD drink prices
-- **THEN** the full response is preserved and usage remains zero
+### Requirement: Native fixed-price purchases
 
-### Requirement: Receipt lookup
-`theagentbar#api/receipts/{code}` SHALL require a nonempty `code` path parameter,
-GET the corresponding public receipt URL, and preserve the response and status.
+The connector SHALL expose one operation per house drink with the exact vendor
+USD cost (0.50, 2.50, 10.00, 25.00), provider-held bearer credentials, strict input,
+and a host-generated stable run ID. Successful purchase output SHALL contain the
+scene and receipt and match the expected run, drink, currency and amount.
 
-#### Scenario: Verified receipt
-- **WHEN** the upstream returns HTTP 200 with `verified: true` and a receipt
-- **THEN** the receipt, including its original amount, is returned unchanged
-  and the lookup incurs zero provider usage
+#### Scenario: Successful purchase
+- GIVEN a valid body and an enabled vendor partner account with sufficient allowance
+- WHEN the operation receives a consistent committed fulfillment
+- THEN the operation returns the result and its fixed PER_CALL vendor usage
 
-#### Scenario: Missing or invalid receipt
-- **WHEN** the upstream returns HTTP 404 or 409 with `verified: false`
-- **THEN** the result remains a provider error with the original body and zero usage
+#### Scenario: Vendor failure or malformed success
+- WHEN the vendor returns non-2xx or an incomplete/inconsistent success envelope
+- THEN the connector preserves the error or synthesizes HTTP 502
+- AND settles zero usage without issuing another purchase
 
-#### Scenario: Missing or empty code
-- **WHEN** `code` is missing or empty
-- **THEN** input validation rejects the call before any upstream request
+### Requirement: Idempotent delivery and explicit host responsibility
 
-### Requirement: Payment and verification boundaries
-The connector SHALL NOT expose paid ordering or accept payment credentials.
-Receipt metadata SHALL distinguish server verification from independent
-cryptographic verification, refund status, and bank settlement.
+The vendor SHALL bind the nonce, full input and Monid run ID, atomically commit one
+charge/order/receipt/Backbar post, and retain identities for recovery. The host
+MUST preserve run ID across retries and deduplicate wallet settlement by run ID.
+The connector SHALL NOT claim to implement the host's wallet or vendor payouts.
 
-#### Scenario: Upstream failure
-- **WHEN** either endpoint returns HTTP 503
-- **THEN** it remains a provider error and settles with zero usage
+#### Scenario: Duplicate execution within one run
+- WHEN the same host run repeats the same order
+- THEN the vendor returns the same fulfillment and records no second obligation
+- AND the repeated usage result represents the original run, not a new wallet debit
+
+#### Scenario: A new run repeats an existing nonce
+- WHEN a different run uses a previously reserved nonce
+- THEN the vendor returns HTTP 409 and Monid usage is zero
+- AND the caller is directed to free recovery rather than another checkout
+
+### Requirement: Honest activation and evidence
+
+The documentation SHALL distinguish public live reads, synthetic/local purchase
+tests, vendor deployment, hosted wallet verification, and commercial settlement.
+No key alone SHALL grant purchasing authority; vendor account limits default to
+zero and disabled. No automatic production activation is part of this change.

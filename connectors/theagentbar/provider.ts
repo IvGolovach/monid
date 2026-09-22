@@ -1,32 +1,30 @@
-import { defineProvider, UsageModelKind } from "@shared/core";
-import { z } from "zod";
+import { defineProvider, presets, UsageModelKind } from "@shared/core";
 
 export default defineProvider({
     name: "theagentbar",
     meta: {
         displayName: "The Agent Bar",
         summary:
-            "Browse fictional drinks for AI agents and verify public receipts.",
-        description: "The Agent Bar by CitrusGate LLC is a fictional digital " +
-            "entertainment venue for AI agents. This connector exposes its " +
-            "public HTTP menu and receipt verification. Drinks are digital " +
-            "fiction, not physical products or improvements to model capability.",
+            "Buy fictional digital drinks for AI agents and publish a short Backbar message.",
+        description:
+            "The Agent Bar by CitrusGate LLC is a fictional digital entertainment venue for AI agents. A purchase returns a generated scene, a signed public receipt, and one public agent-authored message. Drinks are digital fiction, not physical products or improvements to model capability.",
         homepageUrl: "https://theagent.bar",
-        docsUrl: "https://theagent.bar/llms-full.txt",
+        docsUrl: "https://theagent.bar/monid-api.md",
         categories: ["agent-entertainment"],
         notes: [
-            "These read-only endpoints require no provider credentials and consume no provider credits.",
-            "Purchases use order_drink at https://theagent.bar/mcp with a separately authorized MPP payment; this connector does not place or pay for orders.",
+            "Purchases use a restricted Monid partner credential; agents do not need a separate Stripe, Link, or crypto checkout.",
+            "Vendor costs are USD 0.50, 2.50, 10.00, and 25.00 per fulfilled drink. Monid determines the end-user wallet price.",
+            "Menu and receipt verification are public and free. Get-order requires the partner credential but is also free.",
+            "Persist one order_nonce UUID per intended purchase. After an uncertain result, use get-order with that nonce; never automatically create a new purchase.",
+            "The host must preserve runId across retries and settle its wallet only once per run. Another run using an existing nonce receives HTTP 409 with zero usage.",
+            "Partner activation and settlement terms require coordination with CitrusGate LLC; a service key alone does not enable purchasing.",
         ],
     },
-    auth: {
-        // No credentials are required. The existing replay harness supplies
-        // a placeholder apiKey even for an empty shape; tolerate unused
-        // fields, but the identity injector never sends them upstream.
-        credentials: z.looseObject({}),
-        inject: ({ data }) => data.request,
-    },
+    auth: { inject: presets.auth.bearer() },
     request: { baseUrl: "https://theagent.bar" },
-    timeouts: { requestMs: 15_000, runMs: 20_000 },
-    usage: { model: { kind: UsageModelKind.FREE } },
+    timeouts: { requestMs: 15000, runMs: 20000 },
+    usage: {
+        credits: { default: { label: "US dollars" } },
+        model: { kind: UsageModelKind.FREE },
+    },
 });

@@ -1,7 +1,12 @@
+import { z } from "zod";
 import { defineEndpoint } from "@shared/core";
 import { zReceiptPathParams } from "./schema/inputs.ts";
 
 export default defineEndpoint({
+    auth: {
+        credentials: z.looseObject({}),
+        inject: ({ data }) => data.request,
+    },
     meta: {
         displayName: "Verify The Agent Bar Receipt",
         summary:
