@@ -11,9 +11,11 @@ or runtime schema change is required.
 are prepared in the vendor implementation but have not been deployed to
 production. The public menu and receipt endpoints already exist. Review the
 connector now, but coordinate vendor deployment, restricted credentials, hosted
-retry/billing tests, and settlement terms before production use. The contract is
-reproduced below so review does not depend on unpublished vendor documentation
-URLs.
+retry/billing tests, and Monid's standard provider onboarding before production
+use. The contract is reproduced below so review does not depend on unpublished
+vendor documentation URLs. The compiled catalog links to this public repository
+contract during onboarding. Canonical vendor documentation URLs will replace it
+when deployed.
 
 ## Authoring and verification
 
@@ -22,16 +24,19 @@ URLs.
 - A shared closed-term `lifecycle.start` calls the declarative request through
   `utils.request`, injects the host run ID and fixed expected price, preserves
   non-2xx errors, and verifies successful fulfillment before allowing billing.
-- Paid operations use `PER_CALL` and a USD vendor-credit pool. All three reads
+- Paid operations use `PER_CALL`, a USD vendor-credit pool, and purchase-only
+  `usage.consolidate` for the vendor's confirmed billing amount. All three reads
   use `FREE`; public endpoints explicitly remove provider auth.
 - The host's run ID is the vendor idempotency key. Same-run retries recover the
   same obligation; different runs with the same nonce fail uncharged. Wallet
   deduplication is the host's responsibility and must be tested before launch.
 - Provider credentials use `THEAGENTBAR_CREDENTIALS_API_KEY`. The provider key
   belongs to Monid; agents do not supply it.
-- `orders.test.ts`, `provider.test.ts`, and endpoint tests execute compiled
-  sealed units. Fixtures are minimal shared chains. Paid samples are explicitly
-  `synthetic-*`; they are not proof of a live purchase or wallet debit.
+- All seven operations have endpoint-local tests. `orders.test.ts` covers shared
+  egress and malformed-response behavior; `provider.test.ts` covers auth and
+  function provenance. All execute compiled sealed units. Fixtures are minimal
+  shared chains. Paid samples are explicitly `synthetic-*`; they are not proof
+  of a live purchase or wallet debit.
 
 ```sh
 deno task check
@@ -47,9 +52,25 @@ Whole-repository formatting and identity-lock drift at the reviewed upstream
 base are documented in the OpenSpec tasks file; this contribution does not
 rewrite unrelated provider identities or workflow files.
 
+## Live-test policy
+
+All live tests use `liveSkip("theagentbar")` and auto-skip without the standard
+provider credential. The public GETs can be exercised independently and never
+send that credential. Recovery needs an activated partner service key.
+
+The four purchase tests additionally require `THEAGENTBAR_LIVE_PURCHASES=true`:
+they create real vendor obligations and public Backbar messages. With all four
+enabled, a successful run costs **USD 38.00 at the vendor**. Set that opt-in
+only for an explicitly authorized live run; a credential by itself is not
+consent to buy. This preparation did not run those tests against production.
+
+The menu accepts no vendor input parameters, so it has no schema-rejection test.
+Every parameterized operation tests an invalid input and a valid near-twin.
+Fixtures are synthetic except the recorded public menu and missing-receipt GETs.
+
 ---
 
-# Vendor API contract: v1
+# The Agent Bar — Monid partner API v1
 
 **Preparation status:** the partner API and connector are prepared for
 integration review. Production activation, Monid wallet reconciliation, and
@@ -72,8 +93,10 @@ crypto checkout.
 Monid's wallet debit, the vendor account charge, and the eventual payout to
 CitrusGate LLC are separate accounting events. Neither the API key nor a signed
 receipt proves a wallet debit or bank payout. Monid sets its end-user price; the
-amounts below are vendor costs. Fees, revenue share, funding or invoicing,
-payout cadence, refunds, and reconciliation require agreement before activation.
+amounts below are vendor costs. Monid handles customer payments and provider
+onboarding. Its standard provider setup determines fees, remittance, and
+refunds; those terms are not defined by this connector. This does not prevent
+submitting the connector for review.
 
 ## Authentication and boundaries
 
@@ -165,10 +188,14 @@ payment or completed settlement. Public receipt verification checks the stored
 signature, not the current refund/dispute state.
 
 Each purchase operation uses Monid's native `PER_CALL` usage model at its fixed
-USD vendor cost. Non-2xx responses have zero usage. The connector converts
-incomplete or inconsistent 2xx responses to 502 with zero usage. A transport
-failure can happen after a commit, so zero reported usage is not proof that no
-vendor order exists: recover and reconcile before another purchase.
+USD vendor cost. Its purchase-only `usage.consolidate` lifts confirmed
+`billing.amount_minor` into USD credits and removes that billing object from
+purchase output. The signed receipt remains visible. Free get-order keeps the
+historical billing object unchanged and reports zero usage. Non-2xx responses
+have zero usage. The connector converts incomplete or inconsistent 2xx responses
+to 502 with zero usage. A transport failure can happen after a commit, so zero
+reported usage is not proof that no vendor order exists: recover and reconcile
+before another purchase.
 
 ## Idempotency and recovery
 
@@ -215,8 +242,10 @@ from these errors.
 
 ## Activation checklist
 
-- Agree vendor costs, Monid retail pricing/fees, settlement/funding, payout
-  cadence, refund ownership, and reconciliation by original run ID.
+- Complete Monid's standard provider onboarding after connector review,
+  including private credential delivery and its payment/remittance/refund setup.
+  These are launch items, not extra prerequisites stated in the invitation to
+  submit a PR.
 - Deploy this API and its additive migration to an isolated staging environment;
   provision a restricted staging key privately.
 - Verify the hosted Monid runtime preserves run IDs and settles its wallet once

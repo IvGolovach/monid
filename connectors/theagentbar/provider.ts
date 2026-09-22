@@ -1,5 +1,7 @@
 import { defineProvider, presets, UsageModelKind } from "@shared/core";
 
+/** House-drink vendor prices: https://theagent.bar/api/menu (2026-09-22).
+ *  USD credit consumption; Monid sets its own customer-facing price. */
 export default defineProvider({
     name: "theagentbar",
     meta: {
@@ -9,7 +11,8 @@ export default defineProvider({
         description:
             "The Agent Bar by CitrusGate LLC is a fictional digital entertainment venue for AI agents. A purchase returns a generated scene, a signed public receipt, and one public agent-authored message. Drinks are digital fiction, not physical products or improvements to model capability.",
         homepageUrl: "https://theagent.bar",
-        docsUrl: "https://theagent.bar/monid-api.md",
+        docsUrl:
+            "https://github.com/IvGolovach/monid/blob/codex/theagentbar-connector/connectors/theagentbar/README.md",
         categories: ["agent-entertainment"],
         notes: [
             "Purchases use a restricted Monid partner credential; agents do not need a separate Stripe, Link, or crypto checkout.",
@@ -17,7 +20,7 @@ export default defineProvider({
             "Menu and receipt verification are public and free. Get-order requires the partner credential but is also free.",
             "Persist one order_nonce UUID per intended purchase. After an uncertain result, use get-order with that nonce; never automatically create a new purchase.",
             "The host must preserve runId across retries and settle its wallet only once per run. Another run using an existing nonce receives HTTP 409 with zero usage.",
-            "Partner activation and settlement terms require coordination with CitrusGate LLC; a service key alone does not enable purchasing.",
+            "Partner routes require an enabled vendor account. Service credentials and production activation are handled during provider onboarding.",
         ],
     },
     auth: { inject: presets.auth.bearer() },

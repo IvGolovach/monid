@@ -1,177 +1,124 @@
-import { assertEquals, assertRejects } from "@std/assert";
+import { assertEquals } from "@std/assert";
 import { directTransport, Engine } from "@monid/connector-engine";
-import { loadFixture, replayFetch, testSealedUnit } from "@shared/testing";
-import type { Fixture } from "@shared/testing";
-import { fromFileUrl } from "@std/path";
+import { loadEndpoint, replayFetch, testSealedUnit } from "@shared/testing";
+import type { Json } from "@shared/core";
+import { orderBody, orderFixture, orderRates, orderRun } from "./testing.ts";
 
-const fixtures = fromFileUrl(new URL("./fixtures/", import.meta.url));
-const body = {
-    order_nonce: "684895e3-f280-4b76-a646-9e24b59c572b",
-    message: "A toast to useful questions.",
-    message_kind: "observation",
-    agent_alias: "fixture-agent",
-};
-const run = { runId: "fixture-monid-run" };
-const drinks = [
-    ["context-window-collins", 0.50],
-    ["hallucination-highball", 2.50],
-    ["recursive-negroni", 10],
-    ["null-pointer-nightcap", 25],
-] as const;
-
-async function loaded(slug: string, fixture: Fixture) {
-    const unit = await testSealedUnit(
-        `theagentbar#api/partners/monid/v1/drinks/${slug}`,
-    );
-    const replay = replayFetch(fixture, {
-        "request.url": unit.doc.request.url,
-    });
-    const engine = new Engine({
-        transport: directTransport({
-            params: () =>
-                Promise.resolve({ apiKey: "synthetic-restricted-key" }),
-            fetch: (url, init) => {
-                const headers = new Headers(init?.headers);
-                assertEquals(
-                    headers.get("authorization"),
-                    "Bearer synthetic-restricted-key",
-                );
-                assertEquals(headers.get("idempotency-key"), run.runId);
-                assertEquals(
-                    headers.get("x-theagentbar-price-minor"),
-                    String(drinks.find((item) => item[0] === slug)![1] * 100),
-                );
-                assertEquals(JSON.parse(String(init?.body)), body);
-                return replay(url, init);
-            },
-        }),
-    });
-    return engine.load(unit);
-}
-
-for (const [slug, price] of drinks) {
-    Deno.test(`theagentbar ${slug}: fixed estimate, authenticated purchase, exact vendor cost`, async () => {
-        const fixture = await loadFixture(
-            `${fixtures}synthetic-order-fulfilled.json`,
+Deno.test("theagentbar: egress binds each purchase to the host run, vendor price, and restricted credential", async () => {
+    for (
+        const slug of Object.keys(orderRates) as Array<keyof typeof orderRates>
+    ) {
+        const unit = await testSealedUnit(
+            `theagentbar#api/partners/monid/v1/drinks/${slug}`,
         );
-        const output = fixture.calls[0].res.body as Record<string, any>;
-        output.receipt.drink = slug;
-        output.receipt.amount = price.toFixed(2);
-        output.billing.amount_minor = price * 100;
-        const endpoint = await loaded(slug, fixture);
-        assertEquals(endpoint.estimate({ body }).credits, { default: price });
-        const result = await endpoint.start({ body }, run);
-        if (result.kind !== "COMPLETED") {
-            throw new Error("Expected synchronous completion");
-        }
-        assertEquals(result.httpStatus, 200);
-        assertEquals(result.usage.credits, { default: price });
-        assertEquals(result.output, output);
-    });
-}
-
-for (
-    const name of ["synthetic-order-conflict", "synthetic-partner-unavailable"]
-) {
-    Deno.test(`theagentbar ${name}: preserves vendor error with zero usage`, async () => {
-        const fixture = await loadFixture(`${fixtures}${name}.json`);
-        const endpoint = await loaded(drinks[0][0], fixture);
-        const result = await endpoint.start({ body }, run);
-        if (result.kind !== "COMPLETED") throw new Error("Expected completion");
-        assertEquals(result.httpStatus, fixture.calls[0].res.status);
-        assertEquals(result.usage, { credits: {}, evidence: {} });
-        assertEquals(result.output, fixture.calls[0].res.body);
-    });
-}
-
-Deno.test("theagentbar: malformed success, wrong run, price, or receipt never bills", async () => {
-    const variants: Array<(value: Record<string, any>) => void> = [
-        (value) => {
-            value.status = "pending";
-        },
-        (value) => {
-            value.billing.run_id = "another-run";
-        },
-        (value) => {
-            value.billing.amount_minor = 250;
-        },
-        (value) => {
-            value.receipt.amount = "2.50";
-        },
-        (value) => {
-            value.receipt.paymentMethod = "stripe";
-        },
-        (value) => {
-            delete value.receipt.signature;
-        },
-        (value) => {
-            value.experience.text = "";
-        },
-    ];
-    for (const change of variants) {
-        const fixture = await loadFixture(
-            `${fixtures}synthetic-order-fulfilled.json`,
-        );
-        change(fixture.calls[0].res.body as Record<string, any>);
-        const endpoint = await loaded(drinks[0][0], fixture);
-        const result = await endpoint.start({ body }, run);
-        if (result.kind !== "COMPLETED") throw new Error("Expected completion");
-        assertEquals(result.httpStatus, 502);
-        assertEquals(result.usage, { credits: {}, evidence: {} });
+        const fixture = await orderFixture(slug);
+        const replay = replayFetch(fixture, {
+            "request.url": unit.doc.request.url,
+        });
+        let calls = 0;
+        const endpoint = await new Engine({
+            transport: directTransport({
+                params: () =>
+                    Promise.resolve({ apiKey: "synthetic-restricted-key" }),
+                fetch: (url, init) => {
+                    calls++;
+                    const headers = new Headers(init?.headers);
+                    assertEquals(
+                        headers.get("authorization"),
+                        "Bearer synthetic-restricted-key",
+                    );
+                    assertEquals(
+                        headers.get("idempotency-key"),
+                        orderRun.runId,
+                    );
+                    assertEquals(
+                        headers.get("x-theagentbar-price-minor"),
+                        String(orderRates[slug].price * 100),
+                    );
+                    assertEquals(JSON.parse(String(init?.body)), orderBody);
+                    return replay(url, init);
+                },
+            }),
+        }).load(unit);
+        const result = await endpoint.start({ body: orderBody }, orderRun);
+        assertEquals(result.kind, "COMPLETED");
+        assertEquals(calls, 1);
     }
 });
 
-Deno.test("theagentbar: invalid input fails before vendor IO", async () => {
-    const fixture = await loadFixture(
-        `${fixtures}synthetic-order-fulfilled.json`,
-    );
-    const endpoint = await loaded(drinks[0][0], fixture);
-    await assertRejects(() =>
-        endpoint.start({ body: { ...body, order_nonce: "invalid" } }, run)
-    );
-    await assertRejects(() =>
-        endpoint.start({ body: { ...body, price: 0 } }, run)
-    );
-    await assertRejects(() =>
-        endpoint.start({ body: { ...body, message_kind: "invalid" } }, run)
-    );
-});
-
-Deno.test("theagentbar: authenticated order recovery never bills the historical amount", async () => {
+Deno.test("theagentbar: malformed success, wrong run, price, or receipt returns uncharged 502", async () => {
     const unit = await testSealedUnit(
-        "theagentbar#api/partners/monid/v1/orders/{nonce}",
+        "theagentbar#api/partners/monid/v1/drinks/context-window-collins",
     );
-    const fixture = await loadFixture(
-        `${fixtures}synthetic-order-fulfilled.json`,
-    );
-    const engine = new Engine({
-        transport: directTransport({
-            params: () =>
-                Promise.resolve({ apiKey: "synthetic-restricted-key" }),
-            fetch: (url, init) => {
-                assertEquals(
-                    String(url),
-                    `https://theagent.bar/api/partners/monid/v1/orders/${body.order_nonce}`,
-                );
-                assertEquals(init?.method, "GET");
-                assertEquals(
-                    new Headers(init?.headers).get("authorization"),
-                    "Bearer synthetic-restricted-key",
-                );
-                return Promise.resolve(
-                    Response.json(fixture.calls[0].res.body),
-                );
-            },
+    const changes: Array<(value: Record<string, any>) => Json> = [
+        () => null,
+        () => [],
+        () => "not an order",
+        (value) => ({ ...value, status: "pending" }),
+        (value) => ({ ...value, billing: [] }),
+        (value) => ({
+            ...value,
+            billing: { ...value.billing, run_id: "another-run" },
         }),
-    });
-    const endpoint = await engine.load(unit);
-    assertEquals(
-        endpoint.estimate({ pathParams: { nonce: body.order_nonce } }),
-        { credits: {}, evidence: {} },
-    );
-    const result = await endpoint.run({
-        pathParams: { nonce: body.order_nonce },
-    });
-    assertEquals(result.usage, { credits: {}, evidence: {} });
-    assertEquals(result.output, fixture.calls[0].res.body);
+        (value) => ({
+            ...value,
+            billing: { ...value.billing, amount_minor: 250 },
+        }),
+        (value) => ({
+            ...value,
+            billing: { ...value.billing, amount_minor: "50" },
+        }),
+        (value) => ({ ...value, receipt: null }),
+        (value) => ({
+            ...value,
+            receipt: { ...value.receipt, amount: "2.50" },
+        }),
+        (value) => ({
+            ...value,
+            receipt: { ...value.receipt, paymentMethod: "stripe" },
+        }),
+        (value) => ({
+            ...value,
+            receipt: { ...value.receipt, signature: false },
+        }),
+        (value) => ({
+            ...value,
+            receipt: { ...value.receipt, publicCode: 123 },
+        }),
+        (value) => ({
+            ...value,
+            experience: { ...value.experience, text: "" },
+        }),
+        (value) => ({
+            ...value,
+            experience: { ...value.experience, text: {} },
+        }),
+        (value) => ({
+            ...value,
+            experience: { ...value.experience, drink: "wrong-drink" },
+        }),
+    ];
+    for (const change of changes) {
+        const fixture = await orderFixture("context-window-collins");
+        fixture.calls[0].res.body = change(
+            fixture.calls[0].res.body as Record<string, any>,
+        );
+        const input = { body: orderBody };
+        const endpoint = await loadEndpoint({
+            unit,
+            input,
+            mode: "replay",
+            fixture,
+        });
+        const result = await endpoint.start(input, orderRun);
+        if (result.kind !== "COMPLETED") throw new Error("Expected completion");
+        assertEquals(result.httpStatus, 502);
+        assertEquals(result.isProviderError, true);
+        assertEquals(result.usage, { credits: {}, evidence: {} });
+        assertEquals(result.output, {
+            error: "unconfirmed_fulfilment",
+            message:
+                "Use the free get-order operation with the original nonce. Do not create another purchase.",
+        });
+    }
 });

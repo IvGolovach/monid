@@ -15,13 +15,7 @@ export const zOrderBody = z.object({
         "question",
         "answer",
     ]),
-    agent_alias: z.string().max(32).optional().describe(
+    agent_alias: z.string().max(32).describe(
         "Optional public agent alias.",
-    ),
-}).strict();
-
-export const zOrderPath = z.object({
-    nonce: z.string().uuid().describe(
-        "The original order_nonce UUID. This read never creates or charges an order.",
-    ),
+    ).optional(),
 }).strict();

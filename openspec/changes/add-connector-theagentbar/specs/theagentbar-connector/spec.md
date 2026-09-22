@@ -23,7 +23,9 @@ scene and receipt and match the expected run, drink, currency and amount.
 #### Scenario: Successful purchase
 - GIVEN a valid body and an enabled vendor partner account with sufficient allowance
 - WHEN the operation receives a consistent committed fulfillment
-- THEN the operation returns the result and its fixed PER_CALL vendor usage
+- THEN the operation returns the scene and receipt with its fixed PER_CALL vendor usage
+- AND consolidates the confirmed billing record into USD credits, removing it from purchase output
+- AND free recovery retains that historical record without consuming credits
 
 #### Scenario: Vendor failure or malformed success
 - WHEN the vendor returns non-2xx or an incomplete/inconsistent success envelope

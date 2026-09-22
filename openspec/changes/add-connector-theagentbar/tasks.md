@@ -7,35 +7,49 @@
 - [x] Bind purchases to the host run ID and guard run, price, currency, drink, and fulfillment before billing.
 - [x] Document idempotency, free recovery, public content trust, and wallet/vendor settlement boundaries.
 - [x] Add seven endpoint identities and the agent-entertainment category.
-- [x] Add minimal synthetic paid fixtures and compiled sealed-unit tests.
+- [x] Add minimal synthetic fixtures, seven endpoint-local suites, whole-usage assertions, schema near-twins, and provider hook-provenance coverage.
+- [x] Gate every live test on liveSkip; require explicit spending opt-in for the four purchases.
+- [x] Consolidate the vendor meter only for purchases; preserve historical billing on free recovery.
+- [x] Verify malformed success types return uncharged 502 and preserve the recovery instruction.
 - [x] Run type checks, lint, changed-file formatting, the full offline suite, and frozen deterministic compilation.
 - [x] Re-run the identity guard and compare its failures with the untouched upstream baseline.
 - [x] Exercise all four compiled purchase operations against the isolated local vendor Worker/D1 implementation.
+## After-review onboarding and launch (outside this connector contribution)
+
+These are operational launch tasks, not additional pre-PR submission conditions.
+
 - [ ] Deploy and verify partner routes and API documentation in the vendor staging/production environments.
-- [ ] Agree service credential delivery, vendor settlement, fees, refunds, and reconciliation with Monid.
+- [ ] Complete Monid's standard provider onboarding and private service-credential delivery.
 - [ ] Verify hosted Monid run persistence, exactly-once wallet settlement, and lost-response recovery.
 - [ ] Complete a separately authorized live purchase and reconciliation before production activation.
 
-## Observed local validation
+## Observed validation
 
-Deno 2.9.7: `deno task check`, `deno lint`, and changed-file formatting passed.
-`deno task test`: **1158 passed, 0 failed, 200 ignored** (credential-gated live tests).
-The connector contributes 17 tests across public reads, native billing, malformed
-successes, upstream errors, auth boundaries, recovery, and strict input validation.
-Two forced compilations with frozen metadata were byte-identical.
+Deno 2.9.7: `deno task check`, `deno lint`, changed-file formatting, and
+`deno task version:check` passed. `deno task test`: **1167 passed, 0 failed,
+207 ignored**. The Agent Bar contributes **26 passing offline tests and seven
+gated live tests**, with endpoint-local coverage for all seven operations.
+The menu has no input parameters, so schema rejection is not applicable to it;
+every parameterized operation tests rejection and a passing near-twin.
 
-A separate local vendor implementation passed its full `pnpm check` (171 unit
-checks and 46 D1 integration cases, including 15 Monid cases). An additional
-contract-price consistency test passed, with type checking, after the OpenAPI
-contract was added. These vendor tests are outside this repository and are not
-remote CI evidence for this contribution.
+Two forced `compiler:compile --force --frozen-meta` builds were byte-identical.
+The public menu and missing-receipt live tests separately passed through the
+compiled engine (two tests, zero usage). No live purchase or authenticated
+production recovery test ran.
 
-A loopback-only transport connected the compiled sealed units to the local
-vendor Worker/D1: all four prices returned HTTP 200, exact same-run replays
-returned the same result, different-run nonce reuse returned uncharged HTTP 409,
-and free recovery returned the original result. The database contained exactly
-four orders, four receipts, four Backbar posts, and four charges totaling 3800
-synthetic cents. No real order, wallet debit, or payout was performed by this test.
+A fresh loopback-only test connected the compiled connector to the separate
+local vendor Worker/D1 implementation. All four prices returned HTTP 200;
+exact same-run replay returned the same delivery, a different run with the same
+nonce returned uncharged HTTP 409, and get-order recovered delivery and the
+historical billing record for free. The isolated database held exactly four
+orders, four receipts, four Backbar messages, and four charges totaling 3800
+synthetic cents. No real funds or production writes were involved.
+
+Prior validation of the unchanged vendor implementation passed 171 unit tests
+and 46 D1 integration cases, followed by an additional OpenAPI price-contract
+test and type checking. That implementation is outside this repository. Neither
+these local checks nor the public GETs prove hosted Monid wallet settlement or
+a provider payout. Remote PR CI has not run.
 
 ## Upstream baseline exceptions
 

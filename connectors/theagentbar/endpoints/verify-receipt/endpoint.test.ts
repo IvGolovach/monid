@@ -4,6 +4,7 @@ import type { RunInput } from "@shared/core";
 import { EngineError, EngineErrorCode } from "@monid/connector-engine";
 import {
     estimateEndpoint,
+    liveSkip,
     loadFixture,
     runEndpoint,
     testSealedUnit,
@@ -61,6 +62,12 @@ for (
 
 Deno.test("theagentbar receipt: rejects missing or empty code before any upstream call", async () => {
     const unit = await testSealedUnit(id);
+    assertEquals(
+        await estimateEndpoint(unit, {
+            pathParams: { code: "tab_fixture_receipt" },
+        }),
+        { credits: {}, evidence: {} },
+    );
     const invalidInputs: RunInput[] = [{}, { pathParams: {} }, {
         pathParams: { code: "" },
     }];
@@ -71,4 +78,23 @@ Deno.test("theagentbar receipt: rejects missing or empty code before any upstrea
         );
         assertEquals(error.code, EngineErrorCode.INVALID_INPUT);
     }
+});
+
+Deno.test({
+    name: "theagentbar receipt: live missing receipt (read-only)",
+    ignore: liveSkip("theagentbar"),
+    fn: async () => {
+        const result = await runEndpoint({
+            unit: await testSealedUnit(id),
+            input: { pathParams: { code: "tab_monid_missing_receipt" } },
+            mode: "live",
+        });
+        assertEquals(result.httpStatus, 404);
+        assertEquals(result.isProviderError, true);
+        assertEquals(result.usage, { credits: {}, evidence: {} });
+        assertEquals(
+            (result.output as Record<string, unknown>).verified,
+            false,
+        );
+    },
 });

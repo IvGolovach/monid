@@ -2,6 +2,7 @@ import { assertEquals } from "@std/assert";
 import { fromFileUrl } from "@std/path";
 import {
     estimateEndpoint,
+    liveSkip,
     loadFixture,
     runEndpoint,
     testSealedUnit,
@@ -44,4 +45,22 @@ Deno.test("theagentbar menu: preserves an upstream error and settles zero usage"
     assertEquals(result.isProviderError, true);
     assertEquals(result.output, fixture.calls[0].res.body);
     assertEquals(result.usage, { credits: {}, evidence: {} });
+});
+
+Deno.test({
+    name: "theagentbar menu: live public menu",
+    ignore: liveSkip("theagentbar"),
+    fn: async () => {
+        const result = await runEndpoint({
+            unit: await testSealedUnit(id),
+            input: {},
+            mode: "live",
+        });
+        assertEquals(result.isProviderError, false);
+        assertEquals(result.usage, { credits: {}, evidence: {} });
+        assertEquals(
+            Array.isArray((result.output as Record<string, unknown>).menu),
+            true,
+        );
+    },
 });

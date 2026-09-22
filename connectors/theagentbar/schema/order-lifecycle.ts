@@ -25,20 +25,23 @@ export const startOrder: LifecycleStartFn = async ({ data, utils }) => {
     const $ = utils.json;
     if (
         res.status !== 200 ||
-        $.optionalStr(res.body, "$.status") !== "fulfilled" ||
-        $.optionalStr(res.body, "$.billing.mode") !== "partner_account" ||
-        $.optionalStr(res.body, "$.billing.run_id") !== data.run.runId ||
-        $.optionalNum(res.body, "$.billing.amount_minor") !== amount ||
-        $.optionalStr(res.body, "$.billing.currency") !== "USD" ||
-        $.optionalStr(res.body, "$.receipt.paymentMethod") !==
+        $.optionalGet(res.body, "$.status") !== "fulfilled" ||
+        $.optionalGet(res.body, "$.billing.mode") !== "partner_account" ||
+        $.optionalGet(res.body, "$.billing.run_id") !== data.run.runId ||
+        $.optionalGet(res.body, "$.billing.amount_minor") !== amount ||
+        $.optionalGet(res.body, "$.billing.currency") !== "USD" ||
+        $.optionalGet(res.body, "$.receipt.paymentMethod") !==
             "monid_partner_account" ||
-        $.optionalStr(res.body, "$.receipt.currency") !== "USD" ||
-        $.optionalStr(res.body, "$.receipt.amount") !==
+        $.optionalGet(res.body, "$.receipt.currency") !== "USD" ||
+        $.optionalGet(res.body, "$.receipt.amount") !==
             (amount / 100).toFixed(2) ||
-        $.optionalStr(res.body, "$.receipt.drink") !== slug ||
-        !$.optionalStr(res.body, "$.receipt.publicCode") ||
-        !$.optionalStr(res.body, "$.receipt.signature") ||
-        !$.optionalStr(res.body, "$.experience.text")
+        $.optionalGet(res.body, "$.receipt.drink") !== slug ||
+        $.optionalGet(res.body, "$.experience.drink") !== slug ||
+        !["$.receipt.publicCode", "$.receipt.signature", "$.experience.text"]
+            .every((path) => {
+                const value = $.optionalGet(res.body, path);
+                return typeof value === "string" && value.length > 0;
+            })
     ) {
         return {
             kind: "COMPLETED",
