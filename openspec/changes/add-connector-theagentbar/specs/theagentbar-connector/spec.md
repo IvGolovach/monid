@@ -32,6 +32,11 @@ scene and receipt and match the expected run, drink, currency and amount.
 - THEN the connector preserves the error or synthesizes HTTP 502
 - AND settles zero usage without issuing another purchase
 
+#### Scenario: Backbar publication is unconfirmed
+- WHEN a purchase response lacks `backbar_post.published: true` or a non-empty string `backbar_post.id`
+- THEN the connector returns HTTP 502 with zero usage
+- AND directs the caller to free recovery using the original nonce, without issuing another purchase
+
 ### Requirement: Idempotent delivery and explicit host responsibility
 
 The vendor SHALL bind the nonce, full input and Monid run ID, atomically commit one

@@ -11,6 +11,7 @@
 - [x] Gate every live test on liveSkip; require explicit spending opt-in for the four purchases.
 - [x] Consolidate the vendor meter only for purchases; preserve historical billing on free recovery.
 - [x] Verify malformed success types return uncharged 502 and preserve the recovery instruction.
+- [x] Require a confirmed Backbar publication before billing; cover nine missing, unpublished, or malformed publication responses across all four purchases.
 - [x] Run type checks, lint, changed-file formatting, the full offline suite, and frozen deterministic compilation.
 - [x] Re-run the identity guard and compare its failures with the untouched upstream baseline.
 - [x] Exercise all four compiled purchase operations against the isolated local vendor Worker/D1 implementation.
@@ -26,11 +27,13 @@ These are operational launch tasks, not additional pre-PR submission conditions.
 ## Observed validation
 
 Deno 2.9.7: `deno task check`, `deno lint`, changed-file formatting, and
-`deno task version:check` passed. `deno task test`: **1167 passed, 0 failed,
-207 ignored**. The Agent Bar contributes **26 passing offline tests and seven
+`deno task version:check` passed. `deno task test`: **1168 passed (36 steps), 0 failed,
+207 ignored**. The Agent Bar contributes **27 passing offline tests and seven
 gated live tests**, with endpoint-local coverage for all seven operations.
 The menu has no input parameters, so schema rejection is not applicable to it;
 every parameterized operation tests rejection and a passing near-twin.
+The 36 publication regression cases failed before the guard was added and pass
+with it; valid purchases still settle their exact vendor usage.
 
 Two forced `compiler:compile --force --frozen-meta` builds were byte-identical.
 The public menu and missing-receipt live tests separately passed through the
@@ -49,7 +52,7 @@ Prior validation of the unchanged vendor implementation passed 171 unit tests
 and 46 D1 integration cases, followed by an additional OpenAPI price-contract
 test and type checking. That implementation is outside this repository. Neither
 these local checks nor the public GETs prove hosted Monid wallet settlement or
-a provider payout. Remote PR CI has not run.
+a provider payout. These are local results; hosted CI is tracked on the PR.
 
 ## Upstream baseline exceptions
 

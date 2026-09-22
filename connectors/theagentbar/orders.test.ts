@@ -4,6 +4,58 @@ import { loadEndpoint, replayFetch, testSealedUnit } from "@shared/testing";
 import type { Json } from "@shared/core";
 import { orderBody, orderFixture, orderRates, orderRun } from "./testing.ts";
 
+Deno.test("theagentbar: every purchase requires a confirmed Backbar publication before billing", async (t) => {
+    const publications: Array<[string, Json | undefined]> = [
+        ["missing publication", undefined],
+        ["null publication", null],
+        ["missing published flag", { id: "note_fixture" }],
+        ["unpublished message", { published: false, id: "note_fixture" }],
+        ["non-boolean published flag", {
+            published: "true",
+            id: "note_fixture",
+        }],
+        ["missing publication ID", { published: true }],
+        ["null publication ID", { published: true, id: null }],
+        ["non-string publication ID", { published: true, id: 123 }],
+        ["empty publication ID", { published: true, id: "" }],
+    ];
+    for (
+        const slug of Object.keys(orderRates) as Array<keyof typeof orderRates>
+    ) {
+        const unit = await testSealedUnit(
+            `theagentbar#api/partners/monid/v1/drinks/${slug}`,
+        );
+        for (const [name, publication] of publications) {
+            await t.step(`${slug}: ${name}`, async () => {
+                const fixture = await orderFixture(slug);
+                const body = fixture.calls[0].res.body as Record<string, Json>;
+                if (publication === undefined) delete body.backbar_post;
+                else body.backbar_post = publication;
+                const input = { body: orderBody };
+                const endpoint = await loadEndpoint({
+                    unit,
+                    input,
+                    mode: "replay",
+                    fixture,
+                });
+                const result = await endpoint.start(input, orderRun);
+                assertEquals(result.kind, "COMPLETED");
+                if (result.kind !== "COMPLETED") {
+                    throw new Error("Expected synchronous completion");
+                }
+                assertEquals(result.httpStatus, 502);
+                assertEquals(result.isProviderError, true);
+                assertEquals(result.usage, { credits: {}, evidence: {} });
+                assertEquals(result.output, {
+                    error: "unconfirmed_fulfilment",
+                    message:
+                        "Use the free get-order operation with the original nonce. Do not create another purchase.",
+                });
+            });
+        }
+    }
+});
+
 Deno.test("theagentbar: egress binds each purchase to the host run, vendor price, and restricted credential", async () => {
     for (
         const slug of Object.keys(orderRates) as Array<keyof typeof orderRates>

@@ -37,11 +37,16 @@ export const startOrder: LifecycleStartFn = async ({ data, utils }) => {
             (amount / 100).toFixed(2) ||
         $.optionalGet(res.body, "$.receipt.drink") !== slug ||
         $.optionalGet(res.body, "$.experience.drink") !== slug ||
-        !["$.receipt.publicCode", "$.receipt.signature", "$.experience.text"]
-            .every((path) => {
-                const value = $.optionalGet(res.body, path);
-                return typeof value === "string" && value.length > 0;
-            })
+        $.optionalGet(res.body, "$.backbar_post.published") !== true ||
+        ![
+            "$.receipt.publicCode",
+            "$.receipt.signature",
+            "$.experience.text",
+            "$.backbar_post.id",
+        ].every((path) => {
+            const value = $.optionalGet(res.body, path);
+            return typeof value === "string" && value.length > 0;
+        })
     ) {
         return {
             kind: "COMPLETED",

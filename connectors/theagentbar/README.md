@@ -23,7 +23,8 @@ when deployed.
   contain no credential or price override.
 - A shared closed-term `lifecycle.start` calls the declarative request through
   `utils.request`, injects the host run ID and fixed expected price, preserves
-  non-2xx errors, and verifies successful fulfillment before allowing billing.
+  non-2xx errors, and verifies successful fulfillment, including a published
+  Backbar message with a non-empty publication ID, before allowing billing.
 - Paid operations use `PER_CALL`, a USD vendor-credit pool, and purchase-only
   `usage.consolidate` for the vendor's confirmed billing amount. All three reads
   use `FREE`; public endpoints explicitly remove provider auth.

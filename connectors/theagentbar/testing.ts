@@ -29,7 +29,6 @@ export const orderRates = {
     },
 } as const;
 
-/** Adapt the shared synthetic response to each documented fixed-price drink. */
 export async function orderFixture(slug: keyof typeof orderRates) {
     const fixture = await loadFixture(fromFileUrl(
         new URL(
