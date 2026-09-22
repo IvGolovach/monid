@@ -405,6 +405,8 @@
         "suzanne#v1/generations/text-to-3d",
         "suzanne#v1/models/download",
         "suzanne#v1/uploads",
+        "theagentbar#api/menu",
+        "theagentbar#api/receipts/{code}",
         "tinyfish#fetch",
         "tinyfish#search"
     ],
